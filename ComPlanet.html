@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celestial Bodies Visualization</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.5/babel.min.js"></script>
+    <style>
+        /* Existing styles */
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; padding: 20px; background: #f0f0f0; }
+        .card { background: white; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .zoom-slider { display: flex; justify-content: center; margin-top: 60px; }
+        .zoom-slider input { width: 1000px; }
+        .button { background: #2563eb; color: white; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: 500; transition: background 0.2s; }
+        .button:hover { background: #1d4ed8; }
+        .button.outline { background: transparent; color: #2563eb; border: 1px solid #2563eb; }
+        .button.outline:hover { background: rgba(37, 99, 235, 0.1); }
+        .switch { position: relative; width: 36px; height: 20px; background: #e5e7eb; border-radius: 20px; cursor: pointer; transition: background 0.2s; }
+        .switch.checked { background: #2563eb; }
+        .switch::after { content: ''; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; background: white; border-radius: 50%; transition: transform 0.2s; }
+        .switch.checked::after { transform: translateX(16px); }
+        .select { padding: 8px 12px; border: 1px solid #e5e7eb; border-radius: 4px; background: white; cursor: pointer; }
+        @keyframes wiggle { 0% { transform: scale(1) rotate(0deg); } 25% { transform: scale(1.1) rotate(-15deg); } 50% { transform: scale(1.1) rotate(10deg); } 75% { transform: scale(1.1) rotate(-10deg); } 100% { transform: scale(1) rotate(0deg); } }
+        .celestial-body { transition: transform 0.2s ease-in-out; transform-origin: center center; }
+        .celestial-body:hover { transform: scale(1.05); }
+        .wiggle { animation: wiggle 0.5s ease-in-out; animation-fill-mode: both; }
+        .display-options { display: flex; align-items: center; gap: 24px; justify-content: center; }
+        .option-label { display: flex; align-items: center; gap: 8px; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState } = React;
+
+        const CelestialBodiesViz = () => {
+            const celestialBodies = [
+                { name: 'PLANETS', diameter: 0, gravity: 0, color: '#ffffff', texture: 'https://grocerysigns.com/cdn/shop/products/BlankWhiteCardStok_1024x1024.jpg?v=1680703841' },
+                { name: 'Mercury', diameter: 4879.4, gravity: 3.7, color: '#A89A8C', texture: 'https://cdn.pixabay.com/photo/2013/07/12/18/36/mercury-153570_1280.png' },
+                { name: 'Venus', diameter: 12104, gravity: 8.87, color: '#DEB887', texture: 'https://cdn.pixabay.com/photo/2013/07/12/16/33/venus-151142_1280.png' },
+                { name: 'Earth', diameter: 12742, gravity: 9.807, color: '#4B92DB', texture: 'https://cdn.pixabay.com/photo/2016/04/24/04/53/globe-1348777_1280.png' },
+                { name: 'Mars', diameter: 6779, gravity: 3.73, color: '#FF6B6B', texture: 'https://cdn.pixabay.com/photo/2013/07/12/18/36/mars-153566_1280.png' },
+                { name: 'Jupiter', diameter: 139820, gravity: 24.79, color: '#CD853F', texture: 'https://cdn.pixabay.com/photo/2013/07/12/18/36/jupiter-153563_1280.png' },
+                { name: 'Saturn', diameter: 116460, gravity: 10.44, color: '#DAA520', texture: 'https://www.biologija.unios.hr/wp-content/uploads/revslider/solar-system-showcase-slider/saturn.png' },
+                { name: 'Uranus', diameter: 50724, gravity: 8.86, color: '#D1E7E7', texture: 'https://static.wikia.nocookie.net/ultraverse/images/e/e2/Uranus_-1.png/revision/latest?cb=20191016014840' },
+                { name: 'Neptune', diameter: 49244, gravity: 11.15, color: '#4169E1', texture: 'https://i0.wp.com/astrolifelessons.com/wp-content/uploads/2015/12/Planet-Neptune-psd20013-300x293.png?resize=243%2C237' },
+
+                { name: 'DWARF PLANETS', diameter: 0, gravity: 0, color: '#ffffff', texture: 'https://grocerysigns.com/cdn/shop/products/BlankWhiteCardStok_1024x1024.jpg?v=1680703841' },
+                { name: 'Pluto', diameter: 2376.6, gravity: 0.62, color: '#987654', texture: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQbhdW832Xij_QWmRrSIOP94RiNMS1TD67T2Q&s' },
+                { name: 'Eris', diameter: 2326, gravity: 0.82, color: '#ABABAB', texture: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSG6gj2_jvLR_vafhxvRxJMZvvR3EEo1a6Ufg&s' },
+                { name: 'Haumea', diameter: 1632, gravity: 0.401, color: '#877060', texture: 'https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/602cbf4c-c343-4d66-bd63-f7a75dcd272b/dee6g90-91ec2cf8-05b6-42fb-b6eb-dbb31b61e749.png/v1/fill/w_512,h_478/haumea_by_a89iksm_dee6g90-fullview.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7ImhlaWdodCI6Ijw9NDc4IiwicGF0aCI6IlwvZlwvNjAyY2JmNGMtYzM0My00ZDY2LWJkNjMtZjdhNzVkY2QyNzJiXC9kZWU2ZzkwLTkxZWMyY2Y4LTA1YjYtNDJmYi1iNmViLWRiYjMxYjYxZTc0OS5wbmciLCJ3aWR0aCI6Ijw9NTEyIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmltYWdlLm9wZXJhdGlvbnMiXX0.EdX00lqvumjSAfODXP7VbTz22fv08IHmg7BWWeZXJFU' },
+                { name: 'Makemake', diameter: 1430, gravity: 0.5, color: '#AD6F6F', texture: 'https://static.wikia.nocookie.net/thesolarsystem6361/images/6/6d/Makemake_spacepedia.png/revision/latest/scale-to-width-down/250?cb=20180302130348' },
+                { name: 'Gonggong', diameter: 1230, gravity: 0.31, color: '#8C7078', texture: 'https://static.wikia.nocookie.net/thesolarsystem6361/images/9/96/Transparent_Background_Gonggong.png/revision/latest/scale-to-width-down/250?cb=20240312225828' },
+                { name: 'Quaoar', diameter: 1110, gravity: 0.16, color: '#FFFFFF', texture: 'https://static.wikia.nocookie.net/thesolarsystem6361/images/2/2f/Quaoar_spacepedia.png/revision/latest/scale-to-width-down/250?cb=20180429124151' },
+                { name: 'Ceres', diameter: 946, gravity: 0.27, color: '#807065', texture: 'https://www.solarsystemscope.com/spacepedia/images/handbook/renders/ceres.png' },
+                { name: 'Orcus', diameter: 958.4, gravity: 0.18, color: '#807065', texture: 'https://static.wikia.nocookie.net/thesolarsystem6361/images/4/41/OrcusAIPNB.webp/revision/latest/scale-to-width/360?cb=20230806220522' },
+                { name: 'Sedna', diameter: 995, gravity: 0.33, color: '#807065', texture: 'https://static.wikia.nocookie.net/atlantlcs-the-solar-system/images/4/48/Sedna.png/revision/latest?cb=20220914222240' },
+                { name: 'Salacia', diameter: 854, gravity: 0.13, color: '#807065', texture: 'https://static.wikia.nocookie.net/thesolarsystem6361/images/4/4f/120347_Salacia_%28Celestia_Rendering%29.png/revision/latest/scale-to-width/360?cb=20191001023919' },
+                { name: 'Vesta', diameter: 525.4, gravity: 0.22, color: '#787467', texture: 'https://upload.wikimedia.org/wikipedia/commons/1/14/Vesta_full_mosaic.jpg'},
+                { name: 'Pallas', diameter: 545, gravity: 0.18, color: '#786E67', texture: 'https://upload.wikimedia.org/wikipedia/commons/d/d4/Potw1749a_Pallas_crop.png'},
+            	{ name: 'Hygiea', diameter: 444, gravity: 0.091, color: '#ffffff', texture: 'https://upload.wikimedia.org/wikipedia/commons/8/88/SPHERE_image_of_Hygiea.jpg'},
+                { name: 'Eunomia', diameter: 268, gravity: 0.063, color: '#ffffff', texture: 'https://upload.wikimedia.org/wikipedia/commons/thumb/f/f2/15_Eunomia_VLT_%282021%29%2C_deconvolved.pdf/page1-640px-15_Eunomia_VLT_%282021%29%2C_deconvolved.pdf.jpg'},
+                { name: 'Sylvia', diameter: 286, gravity: 0.066, color: '#ffffff', texture: 'https://www.kuuke.nl/wp-content/uploads/2015/08/vesta_1.jpg'},
+                { name: 'Chariklo', diameter: 302, gravity: 0.072, color: '#593717', texture: 'https://static.wikia.nocookie.net/thesolarsystem6361/images/5/56/CharikloPaint.NET.png/revision/latest/scale-to-width-down/250?cb=20180809072104'},
+                { name: 'Juno', diameter: 271.4, gravity: 0.065, color: '#ffffff', texture: 'https://upload.wikimedia.org/wikipedia/commons/6/61/3_Juno_VLT_%282021%29.png'},
+                { name: 'Herculina', diameter: 200.1, gravity: 0.054, color: '#ffffff', texture: 'https://upload.wikimedia.org/wikipedia/commons/thumb/9/94/532Herculina_%28Lightcurve_Inversion%29.png/800px-532Herculina_%28Lightcurve_Inversion%29.png'},
+                { name: 'Chiron', diameter: 271.38, gravity: 0.067, color: '#696969', texture: 'https://upload.wikimedia.org/wikipedia/commons/9/94/2060_Chiron.jpg'},
+
+                { name: 'MOONS', diameter: 0, gravity: 0, color: '#ffffff', texture: 'https://grocerysigns.com/cdn/shop/products/BlankWhiteCardStok_1024x1024.jpg?v=1680703841' },
+                { name: 'Titan', diameter: 5149.5, gravity: 1.352, color: '#80852B', texture: 'https://digitalmoondesign.com/wp-content/uploads/2022/09/titan.png' },
+                { name: 'Moon', diameter: 3474.8, gravity: 1.62, color: '#D3D3D3', texture: 'https://cdn.pixabay.com/photo/2016/12/10/19/38/moon-1898047_1280.png' },
+                { name: 'Ganymede', diameter: 5268.2, gravity: 1.428, color: '#A89A8C', texture: 'https://openclipart.org/image/2000px/227575' },
+                { name: 'Callisto', diameter: 4820.6, gravity: 1.236, color: '#42382D', texture: 'https://upload.wikimedia.org/wikipedia/commons/8/88/Callisto%2C_moon_of_Jupiter%2C_NASA.jpg' },
+                { name: 'Io', diameter: 3643.2, gravity: 1.796, color: '#F5A82C', texture: 'https://openclipart.org/image/2000px/227574' },
+                { name: 'Europa', diameter: 3121.6, gravity: 1.315, color: '#E87A76', texture: 'https://d9-wret.s3.us-west-2.amazonaws.com/assets/palladium/production/s3fs-public/media/images/Europa%20-%20Galileo%20SSI%20Natural%20Color%20Mosaic.png' },
+                { name: 'Triton', diameter: 2706.8, gravity: 0.779, color: '#D1E6E5', texture: 'https://static.wikia.nocookie.net/thesolarsystem6361/images/9/9d/Render_Triton.png/revision/latest/scale-to-width-down/250?cb=20170909163746' },
+                { name: 'Titania', diameter: 1576.8, gravity: 0.367, color: '#5E5E5E', texture: 'https://www.olsonindependent.com/solarSystem/images/ariel.png' },
+                { name: 'Rhea', diameter: 1527.6, gravity: 0.264, color: '#CCCCCC', texture: 'https://www.solarsystemscope.com/spacepedia/images/handbook/renders/rhea.png' },
+                { name: 'Oberon', diameter: 1522.8, gravity: 0.358, color: '#735D4D', texture: 'https://www.solarsystemscope.com/spacepedia/images/handbook/renders/oberon.png' },
+                { name: 'Lapetus', diameter: 1471.2, gravity: 0.223, color: '#404740', texture: 'https://www.solarsystemscope.com/spacepedia/images/handbook/renders/iapetus.pnga' },
+                { name: 'Charon', diameter: 1212, gravity: 0.288, color: '#635448', texture: 'https://media.azpm.org/master/image/2024/10/1/hero/pluto.jpg' },
+                { name: 'Umbriel', diameter: 1200, gravity: 0.2, color: '#363535', texture: 'https://static.wikia.nocookie.net/solar-system-exploration-2/images/e/ec/Umbriel.PNG/revision/latest?cb=20220918171011' },
+                { name: 'Ariel', diameter: 1157.8, gravity: 0.246, color: '#4F4F4F', texture: 'https://frostydrew.org/images/ariel.png' },
+                { name: 'Dione', diameter: 1122.8, gravity: 0.232, color: '#D1D1D1', texture: 'https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcSZmxS5STUACnk5a0GjAz9isqXc_faSafvtTA&s' },
+                { name: 'Tethys', diameter: 1062, gravity: 0.145, color: '#CFCFCF', texture: 'https://images-wixmp-ed30a86b8c4ca887773594c2.wixmp.com/f/90ad8232-4e09-4675-b9e7-bc2898960870/dar4vp5-227f657b-18cf-4402-bcc0-9f228c7d730c.png?token=eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJ1cm46YXBwOjdlMGQxODg5ODIyNjQzNzNhNWYwZDQxNWVhMGQyNmUwIiwiaXNzIjoidXJuOmFwcDo3ZTBkMTg4OTgyMjY0MzczYTVmMGQ0MTVlYTBkMjZlMCIsIm9iaiI6W1t7InBhdGgiOiJcL2ZcLzkwYWQ4MjMyLTRlMDktNDY3NS1iOWU3LWJjMjg5ODk2MDg3MFwvZGFyNHZwNS0yMjdmNjU3Yi0xOGNmLTQ0MDItYmNjMC05ZjIyOGM3ZDczMGMucG5nIn1dXSwiYXVkIjpbInVybjpzZXJ2aWNlOmZpbGUuZG93bmxvYWQiXX0.sWIon5wEWQH-nqJpSG1xfnpCNkdnzocYejE2SMlDpJA' },
+                { name: 'Dysnomia', diameter: 200, gravity: 0.055, color: '#242424', texture: 'https://static.wikia.nocookie.net/atlantlcs-the-solar-system/images/e/ed/Dysnomia.png/revision/latest/thumbnail/width/360/height/360?cb=20220919235640'},
+                { name: 'Encladus', diameter: 504.2, gravity: 0.113, color: '#A1C8CF', texture: 'https://static.wikia.nocookie.net/atlantlcs-the-solar-system/images/4/45/Enceladus.png/revision/latest?cb=20220918130533'},
+                { name: 'Miranda', diameter: 471.6, gravity: 0.079, color: '#ffffff', texture: 'https://i.natgeofe.com/n/1d951428-d947-44b5-827f-334521116570/miranda_edit_150dpi.jpg'},
+                { name: 'Vanth', diameter: 380, gravity: 0.067, color: '#7D5738', texture: 'https://static.wikia.nocookie.net/atlantlcs-the-solar-system/images/e/e6/Vanth.png/revision/latest?cb=20220920001651'},
+                { name: 'Proteus', diameter: 420, gravity: 0.034, color: '#ffffff', texture: 'https://upload.wikimedia.org/wikipedia/commons/8/83/Proteus_%28Voyager_2%29.jpg'},
+                { name: 'Mimas', diameter: 392, gravity: 0.064, color: '#3B3B4D', texture: 'https://www.solarsystemscope.com/spacepedia/images/handbook/renders/mimas.png'},
+                { name: 'Nereid', diameter: 340, gravity: 0.071, color: '#262626', texture: 'https://static.wikia.nocookie.net/atlantlcs-the-solar-system/images/2/2a/Nereid.webp/revision/latest?cb=20220919233000'},
+                { name: 'Hyperion', diameter: 270, gravity: 0.02, color: '#786A4D', texture: 'https://upload.wikimedia.org/wikipedia/commons/thumb/e/e0/Hyperion_in_natural_colours.jpg/195px-Hyperion_in_natural_colours.jpg'},
+                { name: 'Phoebe', diameter: 213, gravity: 0.049, color: '#3D3D3D', texture: 'https://upload.wikimedia.org/wikipedia/commons/a/ae/Phoebe_cassini_full.jpg'}
+            ];
+
+            const [sortBy, setSortBy] = useState('diameter');
+            const [displayMode, setDisplayMode] = useState('gravity');
+            const [compareMode, setCompareMode] = useState(false);
+            const [body1, setBody1] = useState('Earth');
+            const [body2, setBody2] = useState('Jupiter');
+            const [jiggling, setJiggling] = useState(null);
+            const [zoomScale, setZoomScale] = useState(1);
+
+            const maxDiameter = Math.max(...celestialBodies.map(b => b.diameter));
+            const getScaledSize = (diameter) => (diameter / maxDiameter) * (compareMode ? 300 : 400) * zoomScale;
+            const getGravityColor = (gravity) => {
+                const intensity = Math.floor((gravity / 24.79) * 255);
+                return `rgb(${255 - intensity}, ${255 - intensity}, 255)`;
+            };
+
+            const handleClick = (bodyName) => {
+                setJiggling(null);
+                setTimeout(() => {
+                    setJiggling(bodyName);
+                }, 10);
+                setTimeout(() => {
+                    setJiggling(null);
+                }, 500);
+            };
+
+            const CelestialBody = ({ body }) => {
+                const size = getScaledSize(body.diameter);
+                const style = {
+                    width: `${size}px`,
+                    height: `${size}px`,
+                    borderRadius: '50%',
+                    cursor: 'pointer',
+                    border: '1px solid rgba(0,0,0,0.1)',
+                    transform: `scale(${zoomScale})`,
+                };
+
+                if (displayMode === 'gravity') {
+                    style.background = getGravityColor(body.gravity);
+                } else if (displayMode === 'color') {
+                    style.background = body.color;
+                } else {
+                    style.backgroundImage = `url(${body.texture})`;
+                    style.backgroundSize = 'cover';
+                    style.backgroundPosition = 'center';
+                }
+
+                return (
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+                        <div style={{ fontSize: '14px', fontWeight: 500, marginBottom: '8px' }}>{body.name}</div>
+                        <div style={{ position: 'relative' }}>
+                            <div className={`celestial-body ${jiggling === body.name ? 'wiggle' : ''}`} style={style} onClick={() => handleClick(body.name)} />
+                        </div>
+                        {compareMode && (
+                            <div style={{ textAlign: 'center', fontSize: '14px', marginTop: '8px' }}>
+                                <div>Diameter: {body.diameter.toLocaleString()} km</div>
+                                <div>Gravity: {body.gravity} m/s²</div>
+                            </div>
+                        )}
+                    </div>
+                );
+            };
+
+            const sortedBodies = [...celestialBodies].sort((a, b) => a[sortBy] - b[sortBy]);
+
+            return (
+                <div className="card">
+                    <h1 style={{ textAlign: 'center', margin: '0 0 20px' }}>Celestial Bodies Visualization</h1>
+                    <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '16px', marginBottom: '20px' }}>
+                        <div style={{ display: 'flex', gap: '16px' }}>
+                            {['diameter', 'gravity'].map((type) => (
+                                <button key={type} onClick={() => { setCompareMode(false); setSortBy(type); }} className={`button ${!compareMode && sortBy === type ? '' : 'outline'}`}>
+                                    Sort by {type === 'diameter' ? 'Size' : 'Gravity'}
+                                </button>
+                            ))}
+                            <button onClick={() => setCompareMode(!compareMode)} className={`button ${compareMode ? '' : 'outline'}`}>
+                                Compare Mode
+                            </button>
+                        </div>
+                        <div className="display-options">
+                            <div className="option-label">
+                                <div className={`switch ${displayMode === 'gravity' ? 'checked' : ''}`} onClick={() => setDisplayMode('gravity')} />
+                                <label>Gravity Colors</label>
+                            </div>
+                            <div className="option-label">
+                                <div className={`switch ${displayMode === 'color' ? 'checked' : ''}`} onClick={() => setDisplayMode('color')} />
+                                <label>True Colors</label>
+                            </div>
+                            <div className="option-label">
+                                <div className={`switch ${displayMode === 'texture' ? 'checked' : ''}`} onClick={() => setDisplayMode('texture')} />
+                                <label>Textures</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div>
+                        {compareMode ? (
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '32px' }}>
+                                <div style={{ display: 'flex', gap: '32px', alignItems: 'center', justifyContent: 'center' }}>
+                                    <select value={body1} onChange={(e) => setBody1(e.target.value)} className="select">
+                                        {celestialBodies.map(body => <option key={body.name} value={body.name}>{body.name}</option>)}
+                                    </select>
+                                    <span style={{ fontSize: '18px', fontWeight: 'bold' }}>vs</span>
+                                    <select value={body2} onChange={(e) => setBody2(e.target.value)} className="select">
+                                        {celestialBodies.map(body => <option key={body.name} value={body.name}>{body.name}</option>)}
+                                    </select>
+                                </div>
+                                <div style={{ display: 'flex', gap: '64px', alignItems: 'center' }}>
+                                    {[body1, body2].map(bodyName => <CelestialBody key={bodyName} body={celestialBodies.find(b => b.name === bodyName)} />)}
+                                </div>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: '32px', padding: '16px' }}>
+                                {sortedBodies.map(body => <CelestialBody key={body.name} body={body} />)}
+                            </div>
+                        )}
+                        <div className="zoom-slider">
+                            <label htmlFor="zoom-slider">Zoom Slider</label>
+                            <input id="zoom-slider" type="range" min="0.5" max="15" step="0.01" value={zoomScale} onChange={(e) => setZoomScale(parseFloat(e.target.value))} />
+                        </div>
+                        <div style={{ fontSize: '12px', textAlign: 'center', marginTop: '16px', color: '#666' }}>
+                            All sizes are proportionally accurate relative to each other
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<CelestialBodiesViz />, document.getElementById('root'));
+    </script>
+</body>
+</html>

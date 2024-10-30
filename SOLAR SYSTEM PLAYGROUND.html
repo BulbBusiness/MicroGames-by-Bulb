@@ -1,0 +1,832 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Interactive Star System with Editing</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #000;
+            font-family: Arial, sans-serif;
+        }
+        canvas {
+            display: block;
+        }
+        #controls {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            display: flex;
+            align-items: center;
+        }
+        #speedControl {
+            width: 120px;
+            height: 40px;
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: space-around;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-top: 80px;
+        }
+        .arrow {
+            width: 0;
+            height: 0;
+            border-top: 10px solid transparent;
+            border-bottom: 10px solid transparent;
+            border-left: 15px solid gray;
+            transition: border-left-color 0.3s;
+        }
+        .arrow.active {
+            border-left-color: #fff;
+        }
+        #resetSpeed {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            background-color: gray;
+            transition: background-color 0.3s;
+        }
+        #resetSpeed:hover {
+            background-color: #fff;
+        }
+        #pauseButton {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            margin-top: 80px;
+        }
+        #pauseButton::before, #pauseButton::after {
+            content: '';
+            width: 5px;
+            height: 15px;
+            background-color: #fff;
+            margin: 0 2px;
+        }
+        #pauseButton.paused::before {
+            transform: translateX(3px);
+        }
+        #pauseButton.paused::after {
+            transform: translateX(-3px);
+        }
+        #pencilButton {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 50px;
+            height: 50px;
+            background-color: rgba(255,255,255,0.2);
+            border-radius: 25px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+        }
+        #pencilButton::before {
+            content: '✏️';
+            font-size: 24px;
+        }
+        #pencilButton.active {
+            background-color: rgba(255,255,255,0.5);
+        }
+        #editPanel {
+            position: absolute;
+            bottom: 80px;
+            right: 20px;
+            background-color: rgba(0,0,0,0.8);
+            border-radius: 10px;
+            padding: 10px;
+            display: none;
+        }
+        #editPanel.active {
+            display: block;
+        }
+        #editPanel input, #editPanel button {
+            margin: 5px 0;
+            padding: 5px;
+        }
+        #colorPicker {
+        display: flex;
+        flex-direction: column;
+    }
+    .color-row {
+        display: flex;
+        margin-bottom: 5px;
+    }
+    .color-option {
+        width: 20px;
+        height: 20px;
+        margin: 2px;
+        cursor: pointer;
+    }
+    #editPanel button {
+        margin: 2px;
+        padding: 5px;
+    }
+    #randomColorButton {
+            margin: 2px;
+            padding: 5px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        #randomColorButton:hover {
+            background-color: #45a049;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="starSystem"></canvas>
+    <div id="controls">
+        <div id="speedControl">
+            <div id="arrow1" class="arrow"></div>
+            <div id="arrow2" class="arrow"></div>
+            <div id="arrow3" class="arrow"></div>
+            <div id="resetSpeed"></div>
+        </div>
+        <div id="pauseButton"></div>
+    </div>
+    <div id="pencilButton"></div>
+    <div id="editPanel">
+        <input type="text" id="nameInput" placeholder="Name">
+        <button id="sizeIncrease">+</button>
+        <button id="sizeDecrease">-</button>
+        <button id="toggleRings">Toggle Rings</button>
+        <button id="addObject">Add Object</button>
+        <button id="removeObject">Remove Object</button>
+        <button id="randomColorButton">Random Color</button>
+    </div>
+    <div id="colorPicker"></div>
+    <script>
+        const canvas = document.getElementById('starSystem');
+        const ctx = canvas.getContext('2d');
+        const speedControl = document.getElementById('speedControl');
+        const arrows = [...document.getElementsByClassName('arrow')];
+        const resetSpeed = document.getElementById('resetSpeed');
+        const pauseButton = document.getElementById('pauseButton');
+        const pencilButton = document.getElementById('pencilButton');
+        const editPanel = document.getElementById('editPanel');
+        const nameInput = document.getElementById('nameInput');
+        const sizeIncreaseButton = document.getElementById('sizeIncrease');
+        const sizeDecreaseButton = document.getElementById('sizeDecrease');
+        const toggleRingsButton = document.getElementById('toggleRings');
+        const addObjectButton = document.getElementById('addObject');
+        const removeObjectButton = document.getElementById('removeObject');
+        const colorPicker = document.getElementById('colorPicker');
+        const randomColorButton = document.getElementById('randomColorButton'); 
+        const colorOptions = {
+    star: ['yellow', 'orange', 'white', 'lightblue'],
+    planet: ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'violet', 'gray', 'lightblue', 'lightgreen', 'brown', 'pink'],
+    moon: ['gray', 'lightgray', 'darkgray', 'tan', 'silver', 'brown']
+};
+
+function getRandomColor(objectType) {
+    const colors = colorOptions[objectType];
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    return color;
+}
+
+function getColorVariant(baseColor, variant) {
+    let rgb;
+    switch(baseColor) {
+        case 'red': rgb = [255, 0, 0]; break;
+        case 'orange': rgb = [255, 165, 0]; break;
+        case 'yellow': rgb = [255, 255, 0]; break;
+        case 'green': rgb = [0, 128, 0]; break;
+        case 'blue': rgb = [0, 0, 255]; break;
+        case 'indigo': rgb = [75, 0, 130]; break;
+        case 'violet': rgb = [238, 130, 238]; break;
+        case 'gray': rgb = [128, 128, 128]; break;
+        case 'lightblue': rgb = [173, 216, 230]; break;
+        case 'lightgreen': rgb = [144, 238, 144]; break;
+        case 'brown': rgb = [165, 42, 42]; break;
+        case 'pink': rgb = [255, 192, 203]; break;
+        case 'white': return 'rgb(255, 255, 255)';
+        case 'lightgray': rgb = [211, 211, 211]; break;
+        case 'darkgray': rgb = [169, 169, 169]; break;
+        case 'tan': rgb = [210, 180, 140]; break;
+        case 'silver': rgb = [192, 192, 192]; break;
+        default: rgb = [128, 128, 128]; // Default to gray if color not found
+    }
+    
+    switch(variant) {
+        case 'dark':
+            return `rgb(${rgb.map(c => Math.max(0, c - 50)).join(',')})`;
+        case 'pale':
+            return `rgb(${rgb.map(c => Math.min(255, c + 50)).join(',')})`;
+        default:
+            return `rgb(${rgb.join(',')})`;
+    }
+}
+
+randomColorButton.addEventListener('click', () => {
+    if (selectedObject) {
+        let objectType;
+        if (selectedObject instanceof Star) {
+            objectType = 'star';
+        } else if (selectedObject instanceof Planet) {
+            objectType = 'planet';
+        } else if (selectedObject instanceof Moon) {
+            objectType = 'moon';
+        }
+        const newColor = getRandomColor(objectType);
+        const variant = ['dark', 'normal', 'pale'][Math.floor(Math.random() * 3)];
+        selectedObject.color = getColorVariant(newColor, variant);
+        console.log(`New color for ${objectType}: ${selectedObject.color}`); // Debug log
+    }
+});
+
+function editColorOptions(objectType, newColors) {
+    colorOptions[objectType] = newColors;
+    console.log(`Updated color options for ${objectType}: ${newColors}`); // Debug log
+}
+// editColorOptions('planet', ['red', 'blue', 'green', 'purple']); // This would limit planet colors to these four options
+
+        canvas.width = window.innerWidth;
+        canvas.height = window.innerHeight;
+
+        const centerX = canvas.width / 2;
+        const centerY = canvas.height / 2;
+        const blackHoleRadius = 20;
+        const minStarDistance = 50;
+        const minPlanetDistance = 40;
+
+        let speedMultiplier = 1;
+        let focusedStar = null;
+        let focusedPlanet = null;
+        let focusedMoon = null;
+        let isPaused = false;
+        let showAccretionDisc = true;
+        let isEditMode = false;
+        let selectedObject = null;
+
+        function setSpeed(speed, arrowIndex) {
+            speedMultiplier = speed;
+            arrows.forEach((arrow, index) => arrow.classList.toggle('active', index <= arrowIndex));
+        }
+
+        arrows.forEach((arrow, index) => arrow.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setSpeed([3, 10, 30][index], index);
+        }));
+
+        resetSpeed.addEventListener('click', (e) => {
+            e.stopPropagation();
+            setSpeed(1, -1);
+        });
+
+        pauseButton.addEventListener('click', () => {
+            isPaused = !isPaused;
+            pauseButton.classList.toggle('paused', isPaused);
+        });
+
+        pencilButton.addEventListener('click', () => {
+    isEditMode = !isEditMode;
+    pencilButton.classList.toggle('active', isEditMode);
+    editPanel.classList.toggle('active', isEditMode);
+    colorPicker.style.display = isEditMode ? 'flex' : 'none';
+    
+    // Show or hide the random color button along with other edit controls
+    randomColorButton.style.display = isEditMode ? 'block' : 'none';
+});
+
+function updateEditPanel(object) {
+    nameInput.value = object.name;
+    toggleRingsButton.style.display = object instanceof Planet ? 'block' : 'none';
+    addObjectButton.style.display = (object instanceof Star && object.planets.length < 15) || (object instanceof Planet && object.moons.length < 10) ? 'block' : 'none';
+    removeObjectButton.style.display = (object instanceof Planet || object instanceof Moon) ? 'block' : 'none';
+    
+    // Always show the random color button when in edit mode
+    randomColorButton.style.display = 'block';
+}
+        class CelestialBody {
+            constructor(x, y, radius, color, name, speed) {
+                this.x = x;
+                this.y = y;
+                this.radius = radius;
+                this.color = color;
+                this.name = name;
+                this.speed = speed;
+                this.angle = Math.random() * Math.PI * 2;
+                this.orbitRadius = Math.hypot(x - centerX, y - centerY);
+                this.showName = false;
+                this.originalRadius = radius;
+            }
+
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, this.radius, 0, Math.PI * 2);
+                ctx.fillStyle = this.color;
+                ctx.fill();
+                if (this.showName) {
+                    ctx.fillStyle = 'white';
+                    ctx.font = '12px Arial';
+                    ctx.textAlign = 'center';
+                    ctx.fillText(this.name, this.x, this.y - this.radius - 5);
+                }
+            }
+
+            update() {
+                if (!isPaused) {
+                    this.angle += this.speed * speedMultiplier;
+                    this.x = centerX + Math.cos(this.angle) * this.orbitRadius;
+                    this.y = centerY + Math.sin(this.angle) * this.orbitRadius;
+                }
+            }
+        }
+
+        class Star extends CelestialBody {
+            constructor(x, y, radius, color, name, speed) {
+                super(x, y, radius, color, name, speed);
+                this.planets = this.generatePlanets();
+                this.glow = 20;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.shadowBlur = this.glow;
+                ctx.shadowColor = this.color;
+                super.draw();
+                ctx.restore();
+            }
+
+            generatePlanets() {
+                return Array(Math.floor(Math.random() * 10) + 1).fill().map((_, i) => {
+                    const planetRadius = Math.random() * 5 + 2;
+                    const planetColor = `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`;
+                    const planetName = `Planet-${Math.random().toString(36).substring(7)}`;
+                    const planetSpeed = (Math.random() * 0.001) + 0.0005;
+                    const planetOrbitRadius = minPlanetDistance + (i * 30);
+                    return new Planet(this.x, this.y, planetRadius, planetColor, planetName, planetSpeed, planetOrbitRadius);
+                });
+            }
+
+            updatePlanets() {
+                this.planets.forEach(planet => {
+                    planet.centerX = this.x;
+                    planet.centerY = this.y;
+                    planet.update();
+                });
+            }
+        }
+
+        class Planet extends CelestialBody {
+            constructor(starX, starY, radius, color, name, speed, orbitRadius) {
+                super(starX, starY, radius, color, name, speed);
+                this.orbitRadius = orbitRadius;
+                this.moons = this.generateMoons();
+                this.centerX = starX;
+                this.centerY = starY;
+                this.hasRings = this.radius > 4 && Math.random() < 0.5;
+                if (this.hasRings) {
+                    this.ringColor = `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},0.5)`;
+                    this.ringWidth = this.radius * 0.5;
+                }
+            }
+
+            generateMoons() {
+                return Array(Math.floor(Math.random() * 5) + 1).fill().map((_, i) => {
+                    const maxMoonRadius = this.radius * 0.75;
+                    const moonRadius = Math.random() * maxMoonRadius + 1;
+                    const moonColor = `rgb(${128 + Math.random() * 64},${128 + Math.random() * 64},${128 + Math.random() * 64})`;
+                    const moonName = `Moon-${Math.random().toString(36).substring(7)}`;
+                    const moonSpeed = (Math.random() * 0.005) + 0.001;
+                    const moonOrbitRadius = (i + 1) * 15;
+                    return new Moon(this.x, this.y, moonRadius, moonColor, moonName, moonSpeed, moonOrbitRadius);
+                });
+            }
+
+            draw() {
+                super.draw();
+                if (this.hasRings) {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, this.radius + this.ringWidth, 0, Math.PI * 2);
+                    ctx.strokeStyle = this.ringColor;
+                    ctx.lineWidth = this.ringWidth;
+                    ctx.stroke();
+                }
+            }
+
+            update() {
+                super.update();
+                this.moons.forEach(moon => {
+                    moon.centerX = this.x;
+                    moon.centerY = this.y;
+                    moon.update();
+                });
+            }
+        }
+
+        class Moon extends CelestialBody {
+            constructor(planetX, planetY, radius, color, name, speed, orbitRadius) {
+                super(planetX, planetY, radius, color, name, speed);
+                this.orbitRadius = orbitRadius;
+                this.centerX = planetX;
+                this.centerY = planetY;
+            }
+
+            update() {
+                if (!isPaused) {
+                    this.angle += this.speed * speedMultiplier;
+                    this.x = this.centerX + Math.cos(this.angle) * this.orbitRadius;
+                    this.y = this.centerY + Math.sin(this.angle) * this.orbitRadius;
+                }
+            }
+        }
+
+        const stars = Array(100).fill().map(() => {
+            let x, y, distance;
+            do {
+                x = Math.random() * canvas.width;
+                y = Math.random() * canvas.height;
+                distance = Math.hypot(x - centerX, y - centerY);
+            } while (distance < minStarDistance);
+
+            const radius = Math.random() * 3 + 1;
+            const temperature = Math.random() * 3000 + 3000;
+            const r = 255;
+            const g = Math.min(255, 100 + (temperature - 3000) / 3000 * 155);
+            const b = Math.min(255, 100 + (temperature - 4000) / 2000 * 155);
+            const color = `rgb(${r},${g},${b})`;
+            const name = `Star-${Math.random().toString(36).substring(7)}`;
+            const speed = (Math.random() * 0.0001) + 0.00005;
+
+            return new Star(x, y, radius, color, name, speed);
+        });
+
+        canvas.addEventListener('click', (event) => {
+            const rect = canvas.getBoundingClientRect();
+            const x = event.clientX - rect.left;
+            const y = event.clientY - rect.top;
+
+            if (isEditMode) {
+                if (focusedPlanet) {
+                    focusedPlanet.moons.forEach(moon => {
+                        if (Math.hypot(x - moon.x, y - moon.y) <= moon.radius) {
+                            selectedObject = moon;
+                            updateEditPanel(moon);
+                        }
+                    });
+                } else if (focusedStar) {
+                    focusedStar.planets.forEach(planet => {
+                        if (Math.hypot(x - planet.x, y - planet.y) <= planet.radius) {
+                            selectedObject = planet;selectedObject = planet;
+                            updateEditPanel(planet);
+                        }
+                    });
+                } else {
+                    stars.forEach(star => {
+                        if (Math.hypot(x - star.x, y - star.y) <= star.radius) {
+                            selectedObject = star;
+                            updateEditPanel(star);
+                        }
+                    });
+                }
+            } else {
+                if (focusedPlanet) {
+                    focusedPlanet.moons.forEach(moon => {
+                        if (Math.hypot(x - moon.x, y - moon.y) <= moon.radius) {
+                            moon.showName = !moon.showName;
+                        }
+                    });
+                } else if (focusedStar) {
+                    focusedStar.planets.forEach(planet => {
+                        if (Math.hypot(x - planet.x, y - planet.y) <= planet.radius) {
+                            planet.showName = !planet.showName;
+                        }
+                    });
+                } else {
+                    stars.forEach(star => {
+                        if (Math.hypot(x - star.x, y - star.y) <= star.radius) {
+                            star.showName = !star.showName;
+                        }
+                    });
+                }
+            }
+        });
+// edited code starts here
+canvas.addEventListener('dblclick', (event) => {
+    const rect = canvas.getBoundingClientRect();
+    const x = event.clientX - rect.left;
+    const y = event.clientY - rect.top;
+
+    if (isEditMode) {
+        if (focusedStar && focusedStar.planets.length < 15) {
+            const planetRadius = Math.random() * 5 + 2;
+            const planetColor = `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`;
+            const planetName = `Planet-${Math.random().toString(36).substring(7)}`;
+            const planetSpeed = (Math.random() * 0.001) + 0.0005;
+            const planetOrbitRadius = Math.hypot(x - centerX, y - centerY);
+            const newPlanet = new Planet(focusedStar.x, focusedStar.y, planetRadius, planetColor, planetName, planetSpeed, planetOrbitRadius);
+            focusedStar.planets.push(newPlanet);
+            selectedObject = newPlanet;
+            updateEditPanel(newPlanet);
+        } else if (focusedPlanet && focusedPlanet.moons.length < 10) {
+            const maxMoonRadius = focusedPlanet.radius * 0.75;
+            const moonRadius = Math.random() * maxMoonRadius + 1;
+            const moonColor = `rgb(${128 + Math.random() * 64},${128 + Math.random() * 64},${128 + Math.random() * 64})`;
+            const moonName = `Moon-${Math.random().toString(36).substring(7)}`;
+            const moonSpeed = (Math.random() * 0.005) + 0.001;
+            const moonOrbitRadius = (focusedPlanet.moons.length + 1) * 15;
+            const newMoon = new Moon(focusedPlanet.x, focusedPlanet.y, moonRadius, moonColor, moonName, moonSpeed, moonOrbitRadius);
+            focusedPlanet.moons.push(newMoon);
+            selectedObject = newMoon;
+            updateEditPanel(newMoon);
+        }
+    } else {
+    if (focusedPlanet) {
+        focusedPlanet = null;
+    } else if (focusedStar) {
+        focusedStar.planets.forEach(planet => {
+            if (Math.hypot(x - planet.x, y - planet.y) <= planet.radius) {
+                focusedPlanet = planet;
+                return;
+            }
+        });
+        if (!focusedPlanet) {
+            focusedStar.radius = focusedStar.originalRadius; // Reset the star's radius
+            focusedStar = null;
+            showAccretionDisc = true;
+        }
+    } else {
+        stars.forEach(star => {
+            if (Math.hypot(x - star.x, y - star.y) <= star.radius) {
+                focusedStar = star;
+                focusedStar.x = centerX;
+                focusedStar.y = centerY;
+                focusedStar.originalRadius = focusedStar.radius; // Store the original radius
+                focusedStar.radius = blackHoleRadius;
+                focusedStar.planets.forEach(planet => {
+                    planet.centerX = centerX;
+                    planet.centerY = centerY;
+                });
+                showAccretionDisc = false;
+                return;
+            }
+        });
+    }
+}
+}); // might be a buggy place!
+// edited code ends here
+function updateEditPanel(object) {
+    nameInput.value = object.name;
+    toggleRingsButton.style.display = object instanceof Planet ? 'block' : 'none';
+    addObjectButton.style.display = (object instanceof Star && object.planets.length < 15) || (object instanceof Planet && object.moons.length < 10) ? 'block' : 'none';
+    removeObjectButton.style.display = (object instanceof Planet || object instanceof Moon) ? 'block' : 'none';
+        }
+
+        nameInput.addEventListener('change', () => {
+            if (selectedObject) {
+                selectedObject.name = nameInput.value;
+            }
+        });
+
+        sizeIncreaseButton.addEventListener('click', () => {
+            if (selectedObject) {
+                const maxSize = selectedObject instanceof Star ? 30 : selectedObject instanceof Planet ? 15 : 10;
+                selectedObject.radius = Math.min(selectedObject.radius + 1, maxSize);
+            }
+        });
+
+        sizeDecreaseButton.addEventListener('click', () => {
+            if (selectedObject) {
+                const minSize = 1;
+                selectedObject.radius = Math.max(selectedObject.radius - 1, minSize);
+            }
+        });
+
+        toggleRingsButton.addEventListener('click', () => {
+            if (selectedObject instanceof Planet) {
+                selectedObject.hasRings = !selectedObject.hasRings;
+                if (selectedObject.hasRings) {
+                    selectedObject.ringColor = `rgba(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255},0.5)`;
+                    selectedObject.ringWidth = selectedObject.radius * 0.5;
+                }
+            }
+        });
+
+        addObjectButton.addEventListener('click', () => {
+            if (selectedObject instanceof Star && selectedObject.planets.length < 15) {
+                const planetRadius = Math.random() * 5 + 2;
+                const planetColor = `rgb(${Math.random() * 255},${Math.random() * 255},${Math.random() * 255})`;
+                const planetName = `Planet-${Math.random().toString(36).substring(7)}`;
+                const planetSpeed = (Math.random() * 0.001) + 0.0005;
+                const planetOrbitRadius = minPlanetDistance + (selectedObject.planets.length * 30);
+                const newPlanet = new Planet(selectedObject.x, selectedObject.y, planetRadius, planetColor, planetName, planetSpeed, planetOrbitRadius);
+                selectedObject.planets.push(newPlanet);
+            } else if (selectedObject instanceof Planet && selectedObject.moons.length < 10) {
+                const maxMoonRadius = selectedObject.radius * 0.75;
+                const moonRadius = Math.random() * maxMoonRadius + 1;
+                const moonColor = `rgb(${128 + Math.random() * 64},${128 + Math.random() * 64},${128 + Math.random() * 64})`;
+                const moonName = `Moon-${Math.random().toString(36).substring(7)}`;
+                const moonSpeed = (Math.random() * 0.005) + 0.001;
+                const moonOrbitRadius = (selectedObject.moons.length + 1) * 15;
+                const newMoon = new Moon(selectedObject.x, selectedObject.y, moonRadius, moonColor, moonName, moonSpeed, moonOrbitRadius);
+                selectedObject.moons.push(newMoon);
+            }
+            updateEditPanel(selectedObject);
+        });
+
+        removeObjectButton.addEventListener('click', () => {
+            if (selectedObject instanceof Planet && focusedStar) {
+                focusedStar.planets = focusedStar.planets.filter(planet => planet !== selectedObject);
+                selectedObject = focusedStar;
+            } else if (selectedObject instanceof Moon && focusedPlanet) {
+                focusedPlanet.moons = focusedPlanet.moons.filter(moon => moon !== selectedObject);
+                selectedObject = focusedPlanet;
+            }
+            updateEditPanel(selectedObject);
+        });
+
+        function createColorPicker() { //begins here
+    const colors = ['red', 'orange', 'yellow', 'green', 'blue', 'indigo', 'violet', 'black', 'gray', 'white', 'lightblue', 'lightgreen'];
+    const variants = ['dark', 'normal', 'pale'];
+    
+    variants.forEach(variant => {
+        const row = document.createElement('div');
+        row.className = 'color-row';
+        colors.forEach(color => {
+            const colorOption = document.createElement('div');
+            colorOption.className = 'color-option';
+            colorOption.style.backgroundColor = getColorVariant(color, variant);
+            colorOption.addEventListener('click', () => {
+                if (selectedObject) {
+                    if (selectedObject instanceof Star) {
+                        if (['yellow', 'orange', 'white', 'lightblue'].includes(color) && variant === 'pale') {
+                            selectedObject.color = getColorVariant(color, variant);
+                        }
+                    } else if (selectedObject instanceof Moon) {
+                        if (['orange', 'red', 'gray'].includes(color) && ['pale', 'normal', 'dark'].includes(variant)) {
+                            selectedObject.color = getColorVariant(color, variant);
+                        }
+                    } else {
+                        selectedObject.color = getColorVariant(color, variant);
+                    }
+                }
+            });
+            row.appendChild(colorOption);
+        });
+        colorPicker.appendChild(row);
+    });
+}
+
+function getColorVariant(baseColor, variant) {
+    let rgb;
+    switch(baseColor) {
+        case 'red': rgb = [255, 0, 0]; break;
+        case 'orange': rgb = [255, 165, 0]; break;
+        case 'yellow': rgb = [255, 255, 0]; break;
+        case 'green': rgb = [0, 128, 0]; break;
+        case 'blue': rgb = [0, 0, 255]; break;
+        case 'indigo': rgb = [75, 0, 130]; break;
+        case 'violet': rgb = [238, 130, 238]; break;
+        case 'gray': rgb = [128, 128, 128]; break;
+        case 'lightblue': rgb = [173, 216, 230]; break;
+        case 'lightgreen': rgb = [144, 238, 144]; break;
+        case 'brown': rgb = [165, 42, 42]; break;
+        case 'pink': rgb = [255, 192, 203]; break;
+        case 'white': return 'rgb(255, 255, 255)';
+        case 'lightgray': rgb = [211, 211, 211]; break;
+        case 'darkgray': rgb = [169, 169, 169]; break;
+        case 'tan': rgb = [210, 180, 140]; break;
+        case 'silver': rgb = [192, 192, 192]; break;
+        default: rgb = [128, 128, 128]; // Default to gray if color not found
+    }
+    
+    switch(variant) {
+        case 'dark':
+            return `rgb(${rgb.map(c => Math.max(0, c - 50)).join(',')})`;
+        case 'pale':
+            return `rgb(${rgb.map(c => Math.min(255, c + 50)).join(',')})`;
+        default:
+            return `rgb(${rgb.join(',')})`;
+    }
+}
+
+function hexToRgb(hex) {
+    const bigint = parseInt(hex.slice(1), 16);
+    return [(bigint >> 16) & 255, (bigint >> 8) & 255, bigint & 255];
+}
+//ends here
+        createColorPicker();
+
+        function drawConnections() {
+            for (let i = 0; i < stars.length; i++) {
+                for (let j = i + 1; j < stars.length; j++) {
+                    const dx = stars[i].x - stars[j].x;
+                    const dy = stars[i].y - stars[j].y;
+                    const distance = Math.hypot(dx, dy);
+                    if (distance < 100) {
+                        const opacity = 1 - (distance / 100);
+                        ctx.strokeStyle = `rgba(255,255,255,${opacity})`;
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(stars[i].x, stars[i].y);
+                        ctx.lineTo(stars[j].x, stars[j].y);
+                        ctx.stroke();
+                    }
+                }
+            }
+        }
+
+        function drawAccretionDisc() {
+            const discWidth = 10;
+            const innerRadius = blackHoleRadius + 2;
+            const outerRadius = innerRadius + discWidth;
+
+            ctx.beginPath();
+            ctx.arc(centerX, centerY, outerRadius, 0, Math.PI * 2);
+            ctx.arc(centerX, centerY, innerRadius, 0, Math.PI * 2, true);
+            ctx.closePath();
+
+            const gradient = ctx.createRadialGradient(centerX, centerY, innerRadius, centerX, centerY, outerRadius);
+            gradient.addColorStop(0, 'rgba(255,165,0,0.8)');
+            gradient.addColorStop(1, 'rgba(255,69,0,0)');
+            ctx.fillStyle = gradient;
+            ctx.fill();
+
+            ctx.globalCompositeOperation = 'lighter';
+            for (let i = 0; i < 360; i += 10) {
+                const angle = i * Math.PI / 180;
+                const x1 = centerX + Math.cos(angle) * innerRadius;
+                const y1 = centerY + Math.sin(angle) * innerRadius;
+                const x2 = centerX + Math.cos(angle) * outerRadius;
+                const y2 = centerY + Math.sin(angle) * outerRadius;
+                ctx.beginPath();
+                ctx.moveTo(x1, y1);
+                ctx.lineTo(x2, y2);
+                ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+                ctx.lineWidth = 1;
+                ctx.stroke();
+            }
+            ctx.globalCompositeOperation = 'source-over';
+        }
+
+        let accretionAngle = 0;
+
+        function animate() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (focusedPlanet) {
+                focusedPlanet.draw();
+                focusedPlanet.moons.forEach(moon => {
+                    moon.draw();
+                    moon.update();
+                });
+            } else if (focusedStar) {
+                focusedStar.draw();
+                focusedStar.planets.forEach(planet => {
+                    planet.draw();
+                    planet.update();
+                });
+            } else {
+                ctx.beginPath();
+                ctx.arc(centerX, centerY, blackHoleRadius, 0, Math.PI * 2);
+                ctx.fillStyle = 'black';
+                ctx.fill();
+                ctx.strokeStyle = 'orange';
+                ctx.lineWidth = 2;
+                ctx.stroke();
+
+                if (showAccretionDisc) {
+                    drawAccretionDisc();
+                }
+
+                drawConnections();
+
+                stars.forEach(star => {
+                    star.draw();
+                    star.update();
+                });
+            }
+
+            if (!isPaused) {
+                accretionAngle += 0.01;
+                ctx.save();
+                ctx.translate(centerX, centerY);
+                ctx.rotate(accretionAngle);
+                ctx.translate(-centerX, -centerY);
+                if (showAccretionDisc) {
+                    drawAccretionDisc();
+                }
+                ctx.restore();
+            }
+
+            requestAnimationFrame(animate);
+        }
+
+        animate();
+    </script>
+</body>
+</html>
